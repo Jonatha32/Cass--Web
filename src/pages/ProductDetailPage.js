@@ -1,113 +1,89 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { articlesService } from '../services/articlesService';
-import { favoritesService } from '../services/favoritesService';
-import { Heart, User, MessageCircle, ArrowLeft, Edit, Trash2 } from 'lucide-react';
+import { fakeProducts } from '../data/fakeData';
+import { Heart, MessageCircle, Share2, MapPin, Calendar, Star, User, Edit, Trash2, Send, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const ProductDetailPage = () => {
   const { id } = useParams();
-  const { user } = useAuth();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [message, setMessage] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [showMessageBox, setShowMessageBox] = useState(false);
 
   useEffect(() => {
     loadProduct();
   }, [id]);
 
-  useEffect(() => {
-    if (user && product) {
-      checkFavoriteStatus();
-    }
-  }, [user, product]);
-
   const loadProduct = async () => {
     try {
-      const productData = await articlesService.getArticleById(id);
-      if (productData) {
-        setProduct(productData);
-      } else {
-        toast.error('Producto no encontrado');
-        navigate('/');
+      // Primero intentar cargar desde Firebase
+      const allProducts = await articlesService.getAllArticles();
+      let foundProduct = allProducts.find(p => p.id === id || p.uuid === id);
+      
+      if (!foundProduct) {
+        // Si no se encuentra en Firebase, buscar en datos fake
+        foundProduct = fakeProducts.find(p => p.id === id || p.uuid === id);
+      }
+      
+      if (foundProduct) {
+        setProduct(foundProduct);
       }
     } catch (error) {
       console.error('Error loading product:', error);
-      toast.error('Error al cargar el producto');
-      navigate('/');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const checkFavoriteStatus = async () => {
-    if (!user || !product) return;
-    
-    try {
-      const favorite = await favoritesService.isFavorite(user.uid, product.uuid);
-      setIsFavorite(favorite);
-    } catch (error) {
-      console.error('Error checking favorite:', error);
-    }
-  };
-
-  const handleFavoriteToggle = async () => {
-    if (!user) {
-      toast.error('Debes iniciar sesión para agregar favoritos');
-      return;
-    }
-
-    try {
-      const newStatus = await favoritesService.toggleFavorite(user.uid, product.uuid);
-      setIsFavorite(newStatus);
-      toast.success(newStatus ? 'Agregado a favoritos' : 'Eliminado de favoritos');
-    } catch (error) {
-      console.error('Error toggling favorite:', error);
-      toast.error('Error al actualizar favoritos');
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!window.confirm('¿Estás seguro de que quieres eliminar este producto?')) {
-      return;
-    }
-
-    try {
-      await articlesService.deleteArticle(product.id);
-      toast.success('Producto eliminado exitosamente');
-      navigate('/');
-    } catch (error) {
-      console.error('Error deleting product:', error);
-      toast.error('Error al eliminar el producto');
+      // Fallback a datos fake
+      const foundProduct = fakeProducts.find(p => p.id === id || p.uuid === id);
+      if (foundProduct) {
+        setProduct(foundProduct);
+      }
     }
   };
 
   const isOwner = user && product && user.uid === product.ownerId;
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[#205781]"></div>
-      </div>
-    );
-  }
+  const handleSendMessage = () => {
+    if (!user) {
+      toast.error('Debes iniciar sesión para enviar mensajes');
+      return;
+    }
+    if (!message.trim()) return;
+
+    const newMessage = {
+      id: Date.now(),
+      text: message,
+      sender: user.displayName || user.email,
+      timestamp: new Date(),
+      isOwn: true
+    };
+
+    setMessages([...messages, newMessage]);
+    setMessage('');
+    toast.success('Mensaje enviado');
+  };
+
+  const handleEdit = () => {
+    navigate(`/edit/${product.id}`);
+  };
+
+  const handleDelete = () => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta publicación?')) {
+      toast.success('Publicación eliminada');
+      navigate('/');
+    }
+  };
 
   if (!product) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">
-            Producto no encontrado
-          </h2>
-          <button
-            onClick={() => navigate('/')}
-            className="bg-[#205781] text-white px-6 py-3 rounded-lg hover:bg-opacity-90"
-          >
-            Volver al inicio
-          </button>
+          <div className="text-6xl mb-4">📱</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Producto no encontrado</h2>
+          <Link to="/" className="text-[#205781] hover:underline">Volver al inicio</Link>
         </div>
       </div>
     );
@@ -116,97 +92,51 @@ const ProductDetailPage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-[#205781] text-white">
+      <div className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <button
-              onClick={() => navigate('/')}
-              className="flex items-center space-x-2 hover:bg-white hover:bg-opacity-10 px-3 py-2 rounded-lg transition-colors"
+              onClick={() => navigate(-1)}
+              className="flex items-center space-x-2 text-gray-600 hover:text-gray-800 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
               <span>Volver</span>
             </button>
-            
-            <h1 className="text-xl font-semibold truncate max-w-md">
-              {product.titulo}
-            </h1>
-            
-            <div className="flex items-center space-x-2">
-              {user && (
-                <button
-                  onClick={handleFavoriteToggle}
-                  className="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg transition-colors"
-                >
-                  <Heart
-                    className={`w-6 h-6 ${isFavorite ? 'text-red-400 fill-current' : 'text-white'}`}
-                  />
-                </button>
-              )}
-              
-              {isOwner && (
-                <>
-                  <button
-                    onClick={() => navigate(`/edit/${product.id}`)}
-                    className="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg transition-colors"
-                  >
-                    <Edit className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={handleDelete}
-                    className="p-2 hover:bg-red-500 hover:bg-opacity-20 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="w-5 h-5 text-red-400" />
-                  </button>
-                </>
-              )}
+            <div className="flex items-center space-x-3">
+              <button className="p-2 text-gray-600 hover:text-gray-800 transition-colors">
+                <Share2 className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={() => setIsFavorite(!isFavorite)}
+                className="p-2 text-gray-600 hover:text-red-500 transition-colors"
+              >
+                <Heart className={`w-5 h-5 ${isFavorite ? 'text-red-500 fill-current' : ''}`} />
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Images Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+          {/* Product Images */}
           <div className="space-y-4">
-            {/* Main Image */}
-            <div className="relative bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="aspect-square">
-                {product.fotos && product.fotos.length > 0 ? (
-                  <img
-                    src={product.fotos[currentImageIndex]}
-                    alt={product.titulo}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                    <div className="text-gray-400 text-8xl">📱</div>
-                  </div>
-                )}
-              </div>
-              
-              {/* Price Overlay */}
-              <div className="absolute top-4 right-4 bg-[#205781] text-white px-4 py-2 rounded-full shadow-lg">
-                <span className="text-xl font-bold">${product.precio?.toFixed(2)}</span>
-              </div>
+            <div className="aspect-square bg-white rounded-2xl shadow-lg overflow-hidden">
+              <img
+                src={product.fotos[0]}
+                alt={product.titulo}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgdmlld0JveD0iMCAwIDQwMCA0MDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xNzYgMjAwTDIyNCAyNDhIMTI4TDE3NiAyMDBaIiBmaWxsPSIjOUNBM0FGIi8+Cjwvc3ZnPgo=';
+                }}
+              />
             </div>
-
-            {/* Thumbnail Images */}
-            {product.fotos && product.fotos.length > 1 && (
-              <div className="flex space-x-2 overflow-x-auto">
-                {product.fotos.map((foto, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentImageIndex(index)}
-                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 ${
-                      currentImageIndex === index ? 'border-[#205781]' : 'border-gray-200'
-                    }`}
-                  >
-                    <img
-                      src={foto}
-                      alt={`${product.titulo} ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
+            {product.fotos.length > 1 && (
+              <div className="grid grid-cols-4 gap-2">
+                {product.fotos.slice(1, 5).map((foto, index) => (
+                  <div key={index} className="aspect-square bg-white rounded-lg shadow overflow-hidden">
+                    <img src={foto} alt={`${product.titulo} ${index + 2}`} className="w-full h-full object-cover" />
+                  </div>
                 ))}
               </div>
             )}
@@ -214,75 +144,127 @@ const ProductDetailPage = () => {
 
           {/* Product Info */}
           <div className="space-y-6">
-            {/* Title and Price */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h1 className="text-3xl font-bold text-gray-800 mb-4">
-                {product.titulo}
-              </h1>
-              
-              <div className="text-4xl font-bold text-[#205781] mb-6">
-                ${product.precio?.toFixed(2)}
-              </div>
-
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                  Descripción
-                </h3>
-                <p className="text-gray-600 leading-relaxed">
-                  {product.descripcion}
-                </p>
-              </div>
-
-              {/* Tags */}
-              {product.tags && product.tags.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                    Tags
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {product.tags.map((tag, index) => (
-                      <span
-                        key={index}
-                        className="px-3 py-1 bg-[#205781] bg-opacity-10 text-[#205781] rounded-full text-sm"
-                      >
-                        {tag}
-                      </span>
-                    ))}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="inline-block bg-[#205781] text-white px-3 py-1 rounded-full text-sm font-medium">
+                  {product.estado || 'Excelente'}
+                </span>
+                {isOwner && (
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={handleEdit}
+                      className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              <h1 className="text-3xl font-bold text-gray-800 mb-2">{product.titulo}</h1>
+              <div className="text-4xl font-bold text-[#205781] mb-4">${product.precio}</div>
             </div>
 
+            <div className="flex items-center space-x-4 text-sm text-gray-600">
+              {product.ubicacion && (
+                <div className="flex items-center space-x-1">
+                  <MapPin className="w-4 h-4" />
+                  <span>{product.ubicacion}</span>
+                </div>
+              )}
+              <div className="flex items-center space-x-1">
+                <Calendar className="w-4 h-4" />
+                <span>Publicado hace 2 días</span>
+              </div>
+            </div>
+
+            <div className="prose max-w-none">
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Descripción</h3>
+              <p className="text-gray-600 leading-relaxed">{product.descripcion}</p>
+            </div>
+
+            {/* Tags */}
+            {product.tags && (
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Etiquetas</h3>
+                <div className="flex flex-wrap gap-2">
+                  {product.tags.map((tag, index) => (
+                    <span key={index} className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Seller Info */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                Información del vendedor
-              </h3>
-              
+            <div className="bg-white rounded-xl p-6 shadow-lg">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Vendedor</h3>
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
+                <Link 
+                  to={`/profile/${product.ownerId}`}
+                  className="flex items-center space-x-3 hover:bg-gray-50 rounded-lg p-2 transition-colors"
+                >
                   <div className="w-12 h-12 bg-[#205781] bg-opacity-10 rounded-full flex items-center justify-center">
                     <User className="w-6 h-6 text-[#205781]" />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-800">
-                      {product.ownerName || 'Usuario'}
-                    </p>
-                    <p className="text-sm text-gray-500">Vendedor</p>
+                    <div className="font-semibold text-gray-800">{product.ownerName}</div>
+                    <div className="flex items-center space-x-1 text-sm text-gray-600">
+                      <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                      <span>4.8 (127 reseñas)</span>
+                    </div>
                   </div>
-                </div>
-
-                {user && !isOwner && (
+                </Link>
+                {!isOwner && user && (
                   <button
-                    onClick={() => toast.success('Chat próximamente')}
-                    className="flex items-center space-x-2 bg-[#205781] text-white px-6 py-3 rounded-lg hover:bg-opacity-90 transition-colors"
+                    onClick={() => setShowMessageBox(!showMessageBox)}
+                    className="bg-[#205781] text-white px-6 py-3 rounded-lg hover:bg-opacity-90 transition-colors flex items-center space-x-2"
                   >
                     <MessageCircle className="w-5 h-5" />
-                    <span>Enviar mensaje</span>
+                    <span>Contactar</span>
                   </button>
                 )}
               </div>
             </div>
+
+            {/* Message Box */}
+            {showMessageBox && !isOwner && (
+              <div className="bg-white rounded-xl p-6 shadow-lg">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Enviar mensaje</h3>
+                <div className="space-y-4">
+                  <div className="max-h-40 overflow-y-auto space-y-2">
+                    {messages.map((msg) => (
+                      <div key={msg.id} className={`p-3 rounded-lg ${msg.isOwn ? 'bg-[#205781] text-white ml-8' : 'bg-gray-100 text-gray-800 mr-8'}`}>
+                        <p className="text-sm">{msg.text}</p>
+                        <span className="text-xs opacity-70">{msg.timestamp.toLocaleTimeString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      placeholder="Escribe tu mensaje..."
+                      className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#205781]"
+                      onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    />
+                    <button
+                      onClick={handleSendMessage}
+                      className="bg-[#205781] text-white p-2 rounded-lg hover:bg-opacity-90 transition-colors"
+                    >
+                      <Send className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

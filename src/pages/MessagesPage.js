@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useLocation } from 'react-router-dom';
 import { messagesService } from '../services/messagesService';
 import { userService } from '../services/userService';
-import { MessageCircle, Send, Search, User, Clock } from 'lucide-react';
+import { MessageCircle, Send, Search, User, Clock, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const MessagesPage = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [conversations, setConversations] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -82,13 +84,35 @@ const MessagesPage = () => {
   useEffect(() => {
     if (user) {
       loadConversations();
+      
+      // Verificar si se debe iniciar una nueva conversación
+      const urlParams = new URLSearchParams(location.search);
+      const targetUserId = urlParams.get('user');
+      const targetUserName = urlParams.get('name');
+      
+      if (targetUserId && targetUserName) {
+        // Crear o encontrar conversación existente
+        const newConversation = {
+          id: `new_${targetUserId}`,
+          participantName: decodeURIComponent(targetUserName),
+          participantId: targetUserId,
+          lastMessage: 'Iniciar conversación',
+          lastMessageTime: new Date(),
+          unreadCount: 0,
+          productTitle: 'Conversación directa',
+          avatar: null
+        };
+        
+        setSelectedChat(newConversation);
+        setMessages([]);
+      }
     }
     
     return () => {
       if (unsubscribeConversations) unsubscribeConversations();
       if (unsubscribeMessages) unsubscribeMessages();
     };
-  }, [user]);
+  }, [user, location]);
 
   const loadConversations = async () => {
     try {

@@ -14,6 +14,8 @@ import ProfilePage from './pages/ProfilePage';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
 import SupportPage from './pages/SupportPage';
+import CategoriesPage from './pages/CategoriesPage';
+import EditProfilePage from './pages/EditProfilePage';
 import { useAuth } from './hooks/useAuth';
 import './App.css';
 
@@ -46,6 +48,8 @@ function App() {
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/support" element={<SupportPage />} />
+          <Route path="/category/:category" element={<CategoriesPage />} />
+          <Route path="/edit-profile" element={<EditProfilePage />} />
         </Routes>
         <Toaster
           position="top-right"

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Heart, User, Edit, Trash2 } from 'lucide-react';
+import { Heart, User, Edit, Trash2, MapPin, Calendar, Star } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
 
@@ -63,18 +64,30 @@ const ProductCard = ({ product, onFavorite, onEdit, onDelete, isFavorite, onClic
           {product.titulo}
         </h3>
         
-        <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+        <p className="text-gray-600 text-sm mb-3 line-clamp-2">
           {product.descripcion}
         </p>
+        
+        {/* Product Details */}
+        <div className="flex items-center justify-between mb-4 text-xs text-gray-500">
+          <div className="flex items-center space-x-1">
+            <Star className="w-3 h-3 text-yellow-500 fill-current" />
+            <span className="font-medium">{product.estado || 'Excelente'}</span>
+          </div>
+          {product.ubicacion && (
+            <div className="flex items-center space-x-1">
+              <MapPin className="w-3 h-3" />
+              <span>{product.ubicacion}</span>
+            </div>
+          )}
+        </div>
 
         {/* Owner Info and Actions */}
         <div className="flex items-center justify-between">
           {product.ownerName && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                window.location.href = `/profile/${product.ownerId}`;
-              }}
+            <Link
+              to={`/profile/${product.ownerId}`}
+              onClick={(e) => e.stopPropagation()}
               className="flex items-center space-x-2 hover:bg-gray-50 rounded-lg p-1 transition-colors"
             >
               <div className="w-8 h-8 bg-[#205781] bg-opacity-10 rounded-full flex items-center justify-center">
@@ -83,7 +96,7 @@ const ProductCard = ({ product, onFavorite, onEdit, onDelete, isFavorite, onClic
               <span className="text-sm text-gray-600 font-medium">
                 {product.ownerName}
               </span>
-            </button>
+            </Link>
           )}
 
           {/* Owner Actions */}
@@ -95,15 +108,19 @@ const ProductCard = ({ product, onFavorite, onEdit, onDelete, isFavorite, onClic
                   onEdit(product);
                 }}
                 className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition-colors"
+                title="Editar producto"
               >
                 <Edit className="w-4 h-4" />
               </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDelete(product.uuid);
+                  if (window.confirm('¿Estás seguro de que quieres eliminar este producto?')) {
+                    onDelete(product.uuid);
+                  }
                 }}
                 className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition-colors"
+                title="Eliminar producto"
               >
                 <Trash2 className="w-4 h-4" />
               </button>

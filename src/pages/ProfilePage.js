@@ -18,6 +18,7 @@ import {
   Phone,
   MessageCircle
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 const ProfilePage = () => {
@@ -247,9 +248,9 @@ const ProfilePage = () => {
                 )}
               </div>
               {isOwnProfile && (
-                <button className="absolute bottom-2 right-2 bg-white text-[#205781] p-2 rounded-full shadow-lg hover:bg-gray-100 transition-colors">
+                <Link to="/edit-profile" className="absolute bottom-2 right-2 bg-white text-[#205781] p-2 rounded-full shadow-lg hover:bg-gray-100 transition-colors">
                   <Edit className="w-4 h-4" />
-                </button>
+                </Link>
               )}
             </div>
 
@@ -294,13 +295,13 @@ const ProfilePage = () => {
             {/* Actions */}
             {!isOwnProfile && currentUser && (
               <div className="flex flex-col space-y-2">
-                <button
-                  onClick={() => toast.success('Chat próximamente')}
+                <Link
+                  to={`/messages?user=${profileUser.id}&name=${encodeURIComponent(profileUser.name)}`}
                   className="bg-white text-[#205781] px-6 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center space-x-2"
                 >
                   <MessageCircle className="w-4 h-4" />
                   <span>Enviar mensaje</span>
-                </button>
+                </Link>
               </div>
             )}
           </div>
