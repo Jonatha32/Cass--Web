@@ -125,7 +125,7 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
-            <img src={`${process.env.PUBLIC_URL}/Casse.png`} alt="Cassé" className="w-8 h-8" />
+            <img src={`${process.env.PUBLIC_URL}/Casse.png`} alt="Cassé" className="w-16 h-20" />
             <span className={`font-bold text-xl ${isDark ? 'text-white' : 'text-gray-900'}`}>Cassé</span>
           </Link>
 
