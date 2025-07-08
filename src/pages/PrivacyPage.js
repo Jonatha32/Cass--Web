@@ -45,7 +45,7 @@ const PrivacyPage = () => {
           <div className="lg:w-80 flex-shrink-0">
             <div className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-lg border sticky top-28 p-6`}>
               <div className="flex items-center mb-4">
-                <img src={`${process.env.PUBLIC_URL}/casse.png`} alt="Cassé" className="w-6 h-6 mr-2" />
+                <img src={`${process.env.PUBLIC_URL}/Casse.png`} alt="Cassé" className="w-6 h-6 mr-2" />
                 <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   Política de Privacidad
                 </h3>
@@ -112,7 +112,7 @@ const PrivacyPage = () => {
               {/* Hero Section */}
               <div className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-lg border p-8 text-center`}>
                 <div className="w-20 h-20 bg-gradient-to-br from-[#205781] to-[#71BBB2] rounded-full flex items-center justify-center mx-auto mb-6">
-                  <img src={`${process.env.PUBLIC_URL}/casse.png`} alt="Cassé" className="w-12 h-12" />
+                  <img src={`${process.env.PUBLIC_URL}/Casse.png`} alt="Cassé" className="w-12 h-12" />
                 </div>
                 <h1 className={`text-4xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
                   Política de Privacidad

@@ -168,7 +168,7 @@ const LoginPage = () => {
             {/* Logo */}
             <div className="flex items-center mb-8">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mr-4 backdrop-blur-sm">
-                <img src="/casse.png" alt="Cassé" className="w-10 h-10" />
+                <img src={`${process.env.PUBLIC_URL}/Casse.png`} alt="Cassé" className="w-10 h-10" />
               </div>
               <div>
                 <h1 className="text-4xl font-bold">Cassé</h1>
@@ -242,7 +242,7 @@ const LoginPage = () => {
             {/* Mobile Logo */}
             <div className="lg:hidden text-center mb-8">
               <div className="inline-flex items-center bg-white/10 px-6 py-3 rounded-2xl backdrop-blur-sm mb-4">
-                <img src="/casse.png" alt="Cassé" className="w-8 h-8 mr-3" />
+                <img src={`${process.env.PUBLIC_URL}/Casse.png`} alt="Cassé" className="w-8 h-8 mr-3" />
                 <h1 className="text-2xl font-bold text-white">Cassé</h1>
               </div>
               <p className="text-white/80">Tecnología que renace</p>

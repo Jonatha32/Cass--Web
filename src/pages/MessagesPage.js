@@ -507,7 +507,7 @@ const MessagesPage = () => {
               )}
               <div className="flex items-center space-x-3">
                 <div className={`w-10 h-10 ${isDark ? 'bg-gray-700' : 'bg-[#205781]/10'} rounded-full flex items-center justify-center`}>
-                  <img src="/casse.png" alt="Cassé" className="w-6 h-6" />
+                  <img src={`${process.env.PUBLIC_URL}/Casse.png`} alt="Cassé" className="w-6 h-6" />
                 </div>
                 <div>
                   <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>

@@ -45,7 +45,7 @@ const TermsPage = () => {
             <div className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-lg border sticky top-28 p-6`}>
               <div className="flex items-center mb-6">
                 <div className="w-12 h-12 bg-gradient-to-br from-[#205781] to-[#71BBB2] rounded-xl flex items-center justify-center mr-3">
-                  <img src="/casse.png" alt="Cassé" className="w-8 h-8" />
+                  <img src={`${process.env.PUBLIC_URL}/Casse.png`} alt="Cassé" className="w-8 h-8" />
                 </div>
                 <div>
                   <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>

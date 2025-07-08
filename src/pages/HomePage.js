@@ -242,7 +242,7 @@ const HomePage = () => {
       <div id="hero" className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
           <div className="text-center">
-            <img src={`${process.env.PUBLIC_URL}/casse.png`} alt="Cassé" className="w-16 h-16 md:w-20 md:h-20 object-contain mx-auto mb-6" />
+            <img src={`${process.env.PUBLIC_URL}/Casse.png`} alt="Cassé" className="w-16 h-16 md:w-20 md:h-20 object-contain mx-auto mb-6" />
             <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white">
               Encuentra los mejores dispositivos electrónicos
             </h1>
@@ -563,7 +563,7 @@ const HomePage = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             <div className="md:col-span-1">
               <div className="flex items-center mb-6">
-                <img src={`${process.env.PUBLIC_URL}/casse.png`} alt="Cassé" className="w-10 h-10 mr-3" />
+                <img src={`${process.env.PUBLIC_URL}/Casse.png`} alt="Cassé" className="w-10 h-10 mr-3" />
                 <span className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">Cassé</span>
               </div>
               <p className="text-gray-300 mb-6 leading-relaxed">

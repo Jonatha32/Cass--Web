@@ -266,7 +266,7 @@ const SupportPage = () => {
           {/* Hero Section */}
           <div className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl shadow-lg border p-8 text-center`}>
             <div className="w-20 h-20 bg-gradient-to-br from-[#205781] to-[#71BBB2] rounded-full flex items-center justify-center mx-auto mb-6">
-              <img src="/casse.png" alt="Cassé" className="w-12 h-12" />
+              <img src={`${process.env.PUBLIC_URL}/Casse.png`} alt="Cassé" className="w-12 h-12" />
             </div>
             <h1 className={`text-4xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
               Centro de Ayuda Cassé
