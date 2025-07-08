@@ -6,46 +6,144 @@ import {
   collection, 
   query, 
   where, 
-  getDocs 
+  getDocs,
+  serverTimestamp 
 } from 'firebase/firestore';
 import { db } from './firebase';
+
+// Cache para usuarios
+const userCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
+
+const isCacheValid = (timestamp) => 
+  Date.now() - timestamp < CACHE_DURATION;
 
 export const userService = {
   // Obtener usuario por ID
   async getUserById(userId) {
+    if (!userId) return null;
+
+    // Verificar cache
+    const cached = userCache.get(userId);
+    if (cached && isCacheValid(cached.timestamp)) {
+      return cached.data;
+    }
+
     try {
       const userDoc = await getDoc(doc(db, 'users', userId));
+      
       if (userDoc.exists()) {
-        return {
+        const userData = {
           id: userDoc.id,
           ...userDoc.data()
         };
+        
+        // Guardar en cache
+        userCache.set(userId, {
+          data: userData,
+          timestamp: Date.now()
+        });
+        
+        return userData;
+      } else {
+        // Usuario no encontrado, crear perfil básico
+        const basicUser = {
+          id: userId,
+          name: 'Usuario',
+          email: '',
+          photoUrl: null,
+          isOnline: false,
+          lastSeen: new Date(),
+          createdAt: new Date()
+        };
+        
+        userCache.set(userId, {
+          data: basicUser,
+          timestamp: Date.now()
+        });
+        
+        return basicUser;
       }
-      return null;
     } catch (error) {
       console.error('Error getting user:', error);
-      throw error;
+      
+      // Retornar usuario básico en caso de error
+      return {
+        id: userId,
+        name: 'Usuario',
+        email: '',
+        photoUrl: null,
+        isOnline: false,
+        lastSeen: new Date()
+      };
     }
   },
 
   // Crear o actualizar perfil de usuario
-  async updateUserProfile(userId, userData) {
+  async createOrUpdateUser(userId, userData) {
+    if (!userId) throw new Error('userId es requerido');
+
     try {
       const userRef = doc(db, 'users', userId);
-      await setDoc(userRef, {
-        ...userData,
-        updatedAt: new Date()
-      }, { merge: true });
+      const userDoc = await getDoc(userRef);
+      
+      const now = serverTimestamp();
+      
+      if (userDoc.exists()) {
+        // Actualizar usuario existente
+        await updateDoc(userRef, {
+          ...userData,
+          lastSeen: now,
+          updatedAt: now
+        });
+      } else {
+        // Crear nuevo usuario
+        await setDoc(userRef, {
+          ...userData,
+          createdAt: now,
+          lastSeen: now,
+          isOnline: true,
+          verified: false,
+          settings: {
+            notifications: true,
+            emailUpdates: true,
+            privacy: 'public'
+          }
+        });
+      }
+      
+      // Limpiar cache
+      userCache.delete(userId);
       
       return true;
     } catch (error) {
-      console.error('Error updating user profile:', error);
-      throw error;
+      console.error('Error creating/updating user:', error);
+      throw new Error(`Error al actualizar usuario: ${error.message}`);
     }
   },
 
-  // Buscar usuarios por nombre
-  async searchUsers(searchTerm) {
+  // Actualizar estado online
+  async updateOnlineStatus(userId, isOnline) {
+    if (!userId) return;
+
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        isOnline,
+        lastSeen: serverTimestamp()
+      });
+      
+      // Limpiar cache
+      userCache.delete(userId);
+    } catch (error) {
+      console.error('Error updating online status:', error);
+    }
+  },
+
+  // Buscar usuarios
+  async searchUsers(searchTerm, limit = 10) {
+    if (!searchTerm?.trim()) return [];
+
     try {
       const q = query(
         collection(db, 'users'),
@@ -57,44 +155,19 @@ export const userService = {
       return querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      }));
+      })).slice(0, limit);
     } catch (error) {
       console.error('Error searching users:', error);
-      throw error;
+      return [];
     }
   },
 
-  // Obtener estadísticas del usuario
-  async getUserStats(userId) {
-    try {
-      // Obtener productos del usuario
-      const productsQuery = query(
-        collection(db, 'articulos'),
-        where('ownerId', '==', userId)
-      );
-      const productsSnapshot = await getDocs(productsQuery);
-      
-      // Obtener favoritos del usuario
-      const favoritesQuery = query(
-        collection(db, 'favorites'),
-        where('userId', '==', userId)
-      );
-      const favoritesSnapshot = await getDocs(favoritesQuery);
-
-      return {
-        totalProducts: productsSnapshot.size,
-        totalFavorites: favoritesSnapshot.size,
-        totalSales: 0, // Implementar cuando tengamos sistema de ventas
-        rating: 5.0 // Implementar cuando tengamos sistema de ratings
-      };
-    } catch (error) {
-      console.error('Error getting user stats:', error);
-      return {
-        totalProducts: 0,
-        totalFavorites: 0,
-        totalSales: 0,
-        rating: 5.0
-      };
+  // Limpiar cache
+  clearCache(userId = null) {
+    if (userId) {
+      userCache.delete(userId);
+    } else {
+      userCache.clear();
     }
   }
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import { useAuth } from '../hooks/useAuth';
 import { fakeProducts } from '../data/fakeData';
@@ -8,6 +8,7 @@ import { Smartphone, Gamepad2, Laptop, Headphones, Camera, Watch } from 'lucide-
 const CategoriesPage = () => {
   const { category } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [favorites, setFavorites] = useState(new Set());
 
@@ -33,7 +34,7 @@ const CategoriesPage = () => {
   const IconComponent = currentCategory?.icon || Smartphone;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pt-20">
       <div className="bg-gradient-to-r from-[#205781] to-[#71BBB2] text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center mb-6">
@@ -41,10 +42,10 @@ const CategoriesPage = () => {
               <IconComponent className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-4xl font-bold text-center mb-4">
+          <h1 className="text-3xl md:text-4xl font-bold text-center mb-4">
             {currentCategory?.name || 'Categoría'}
           </h1>
-          <p className="text-xl text-center text-blue-100">
+          <p className="text-lg md:text-xl text-center text-blue-100">
             {products.length} productos disponibles
           </p>
         </div>
@@ -68,7 +69,7 @@ const CategoriesPage = () => {
                 onEdit={() => {}}
                 onDelete={() => {}}
                 isFavorite={favorites.has(product.uuid)}
-                onClick={() => window.location.href = `/product/${product.id}`}
+                onClick={() => navigate(`/product/${product.id}`)}
               />
             ))}
           </div>

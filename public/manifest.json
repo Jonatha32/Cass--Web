@@ -1,0 +1,25 @@
+{
+  "short_name": "Cassé",
+  "name": "Cassé - Intercambio Inteligente",
+  "description": "La plataforma líder para intercambiar dispositivos electrónicos de forma segura y sostenible",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23205781'/%3E%3Cpath d='M30 35h40v30H30z' fill='%2371BBB2'/%3E%3Cpath d='M35 40h30v5H35zm0 10h25v5H35zm0 10h20v5H35z' fill='white'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23205781'/%3E%3Cpath d='M30 35h40v30H30z' fill='%2371BBB2'/%3E%3Cpath d='M35 40h30v5H35zm0 10h25v5H35zm0 10h20v5H35z' fill='white'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#205781",
+  "background_color": "#ffffff",
+  "categories": ["shopping", "business", "productivity"],
+  "lang": "es",
+  "scope": "/",
+  "orientation": "portrait-primary"
+}

@@ -19,29 +19,24 @@ const ProductCard = ({ product, onFavorite, onEdit, onDelete, isFavorite, onClic
 
   return (
     <div 
-      className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 cursor-pointer"
+      className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer group"
       onClick={onClick}
     >
       {/* Image Section */}
-      <div className="relative h-56 bg-gray-200">
+      <div className="relative h-48 sm:h-52 bg-gray-50 flex items-center justify-center">
         {product.fotos && product.fotos.length > 0 && !imageError ? (
           <img
             src={product.fotos[0]}
             alt={product.titulo}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-200"
             onError={() => setImageError(true)}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50">
-            <div className="text-gray-400 text-6xl">📱</div>
+          <div className="w-full h-full flex items-center justify-center bg-gray-50">
+            <div className="text-gray-300 text-4xl sm:text-5xl">📱</div>
           </div>
         )}
         
-        {/* Price Tag */}
-        <div className="absolute top-4 right-4 bg-[#205781] text-white px-3 py-1 rounded-full shadow-lg">
-          <span className="font-bold">${product.precio?.toFixed(2)}</span>
-        </div>
-
         {/* Favorite Button */}
         {user && (
           <button
@@ -49,84 +44,98 @@ const ProductCard = ({ product, onFavorite, onEdit, onDelete, isFavorite, onClic
               e.stopPropagation();
               handleFavorite();
             }}
-            className="absolute top-4 left-4 bg-white bg-opacity-90 p-2 rounded-full shadow-lg hover:bg-opacity-100 transition-all"
+            className="absolute top-2 right-2 bg-white bg-opacity-90 p-1.5 rounded-full shadow-sm hover:bg-opacity-100 transition-all opacity-0 group-hover:opacity-100"
           >
             <Heart
-              className={`w-5 h-5 ${isFavorite ? 'text-red-500 fill-current' : 'text-gray-600'}`}
+              className={`w-4 h-4 ${isFavorite ? 'text-red-500 fill-current' : 'text-gray-600'}`}
             />
           </button>
+        )}
+        
+        {/* Estado Badge */}
+        {product.estado && (
+          <div className="absolute top-2 left-2 bg-green-100 text-green-800 px-2 py-1 rounded-md text-xs font-medium">
+            {product.estado}
+          </div>
         )}
       </div>
 
       {/* Content Section */}
-      <div className="p-5">
-        <h3 className="text-xl font-bold text-gray-800 mb-2 line-clamp-2">
+      <div className="p-3 sm:p-4">
+        {/* Price */}
+        <div className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
+          ${product.precio?.toLocaleString()}
+        </div>
+        
+        {/* Title */}
+        <h3 className="text-sm sm:text-base font-medium text-gray-800 mb-2 line-clamp-2 leading-tight">
           {product.titulo}
         </h3>
         
-        <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-          {product.descripcion}
-        </p>
-        
-        {/* Product Details */}
-        <div className="flex items-center justify-between mb-4 text-xs text-gray-500">
-          <div className="flex items-center space-x-1">
-            <Star className="w-3 h-3 text-yellow-500 fill-current" />
-            <span className="font-medium">{product.estado || 'Excelente'}</span>
+        {/* Rating and Reviews */}
+        <div className="flex items-center mb-2">
+          <div className="flex items-center">
+            {[...Array(5)].map((_, i) => (
+              <Star key={i} className="w-3 h-3 text-yellow-400 fill-current" />
+            ))}
           </div>
-          {product.ubicacion && (
-            <div className="flex items-center space-x-1">
-              <MapPin className="w-3 h-3" />
-              <span>{product.ubicacion}</span>
-            </div>
-          )}
+          <span className="text-xs text-gray-500 ml-1">(4.{Math.floor(Math.random() * 9 + 1)})</span>
         </div>
-
-        {/* Owner Info and Actions */}
-        <div className="flex items-center justify-between">
-          {product.ownerName && (
+        
+        {/* Location */}
+        {product.ubicacion && (
+          <div className="flex items-center text-xs text-gray-500 mb-3">
+            <MapPin className="w-3 h-3 mr-1" />
+            <span className="truncate">{product.ubicacion}</span>
+          </div>
+        )}
+        
+        {/* Shipping Info */}
+        <div className="text-xs text-green-600 mb-2">
+          ✓ Envío gratis
+        </div>
+        
+        {/* Owner Info */}
+        {product.ownerName && (
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
             <Link
               to={`/profile/${product.ownerId}`}
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center space-x-2 hover:bg-gray-50 rounded-lg p-1 transition-colors"
+              className="flex items-center space-x-2 text-xs text-gray-600 hover:text-[#205781] transition-colors"
             >
-              <div className="w-8 h-8 bg-[#205781] bg-opacity-10 rounded-full flex items-center justify-center">
-                <User className="w-4 h-4 text-[#205781]" />
-              </div>
-              <span className="text-sm text-gray-600 font-medium">
-                {product.ownerName}
-              </span>
+              <User className="w-3 h-3" />
+              <span className="truncate">{product.ownerName}</span>
             </Link>
-          )}
-
-          {/* Owner Actions */}
-          {isOwner && (
-            <div className="flex space-x-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(product);
-                }}
-                className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition-colors"
-                title="Editar producto"
-              >
-                <Edit className="w-4 h-4" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (window.confirm('¿Estás seguro de que quieres eliminar este producto?')) {
-                    onDelete(product.uuid);
-                  }
-                }}
-                className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition-colors"
-                title="Eliminar producto"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-        </div>
+            
+            {/* Owner Actions */}
+            {isOwner && (
+              <div className="flex space-x-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(product);
+                  }}
+                  className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  title="Editar"
+                >
+                  <Edit className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm('¿Eliminar producto?')) {
+                      onDelete(product.uuid);
+                    }
+                  }}
+                  className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                  title="Eliminar"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

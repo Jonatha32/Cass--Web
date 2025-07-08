@@ -1,6 +1,9 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useEffect, Suspense } from 'react';
+import { HashRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { ThemeProvider } from './contexts/ThemeContext';
+import ErrorBoundary from './components/ErrorBoundary';
+import LoadingSpinner from './components/LoadingSpinner';
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
@@ -19,21 +22,43 @@ import EditProfilePage from './pages/EditProfilePage';
 import { useAuth } from './hooks/useAuth';
 import './App.css';
 
+// Componente para scroll to top
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
+
 function App() {
   const { loading } = useAuth();
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[#205781]"></div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <LoadingSpinner size="xl" className="mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-300">Cargando Cassé...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <Router>
-      <div className="App">
-        <Navbar />
+    <ErrorBoundary>
+      <ThemeProvider>
+        <Router>
+          <div className="App">
+            <ScrollToTop />
+            <Navbar />
+            <Suspense fallback={
+              <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+                <LoadingSpinner size="lg" />
+              </div>
+            }>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -71,8 +96,11 @@ function App() {
             },
           }}
         />
-      </div>
-    </Router>
+            </Suspense>
+          </div>
+        </Router>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

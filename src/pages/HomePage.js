@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import ProductCard from '../components/ProductCard';
+import ProductSlider from '../components/ProductSlider';
 import { useAuth } from '../hooks/useAuth';
 import { articlesService } from '../services/articlesService';
 import { favoritesService } from '../services/favoritesService';
 import { fakeProducts } from '../data/fakeData';
-import { Plus, Search, ChevronDown, Smartphone, Recycle, Users, Shield, Star, User } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Search, ChevronDown, Smartphone, Recycle, Users, Shield, Star, User, Filter, SlidersHorizontal } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
+import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 const HomePage = () => {
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,6 +21,8 @@ const HomePage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [displayedProducts, setDisplayedProducts] = useState([]);
   const [showMore, setShowMore] = useState(false);
+  const [sortBy, setSortBy] = useState('relevance');
+  const [showFilters, setShowFilters] = useState(false);
   const PRODUCTS_PER_PAGE = 12;
 
   useEffect(() => {
@@ -34,40 +40,52 @@ const HomePage = () => {
   }, [user]);
 
   useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setFilteredProducts(products);
-    } else {
-      const filtered = products.filter(product => 
+    let filtered = products;
+    
+    // Aplicar filtro de búsqueda
+    if (searchTerm.trim() !== '') {
+      filtered = products.filter(product => 
         product.titulo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.descripcion?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+        product.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        product.categoria?.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      setFilteredProducts(filtered);
     }
-  }, [products, searchTerm]);
+    
+    // Aplicar ordenamiento
+    switch (sortBy) {
+      case 'price_low':
+        filtered = [...filtered].sort((a, b) => (a.precio || 0) - (b.precio || 0));
+        break;
+      case 'price_high':
+        filtered = [...filtered].sort((a, b) => (b.precio || 0) - (a.precio || 0));
+        break;
+      case 'newest':
+        filtered = [...filtered].sort((a, b) => new Date(b.createdAt || Date.now()) - new Date(a.createdAt || Date.now()));
+        break;
+      case 'popular':
+        filtered = [...filtered].sort((a, b) => (b.views || 0) - (a.views || 0));
+        break;
+      default: // relevance
+        break;
+    }
+    
+    setFilteredProducts(filtered);
+  }, [products, searchTerm, sortBy]);
 
   useEffect(() => {
     setDisplayedProducts(filteredProducts.slice(0, PRODUCTS_PER_PAGE));
     setShowMore(filteredProducts.length > PRODUCTS_PER_PAGE);
   }, [filteredProducts]);
 
-  const handleSearch = (term) => {
-    setSearchTerm(term);
-  };
-
   const loadProducts = async () => {
     try {
-      // Intentar cargar desde Firebase
       const productsData = await articlesService.getAllArticles();
-      
-      // Combinar productos de Firebase con datos fake
       const allProducts = [...productsData, ...fakeProducts];
-      
       setProducts(allProducts);
       setFilteredProducts(allProducts);
     } catch (error) {
       console.error('Error loading products:', error);
-      // En caso de error, usar solo datos fake
       setProducts(fakeProducts);
       setFilteredProducts(fakeProducts);
     } finally {
@@ -79,26 +97,83 @@ const HomePage = () => {
     if (!user) return;
     
     try {
-      const userFavorites = await favoritesService.getUserFavorites(user.uid);
-      const favoriteIds = new Set(userFavorites.map(fav => fav.articleId));
+      const result = await favoritesService.getUserFavorites(user.uid, { 
+        pageSize: 50, // Cargar más favoritos inicialmente
+        useCache: true 
+      });
+      
+      const favoriteIds = new Set(
+        result.favorites ? 
+          result.favorites.map(fav => fav.articleId) : 
+          result.map(fav => fav.articleId) // Compatibilidad con versión anterior
+      );
+      
       setFavorites(favoriteIds);
     } catch (error) {
       console.error('Error loading favorites:', error);
-      // En caso de error, usar favoritos vacíos
+      // No mostrar error al usuario para favoritos, es funcionalidad secundaria
       setFavorites(new Set());
     }
   };
 
   const handleFavorite = async (productId) => {
     if (!user) {
-      toast.error('Debes iniciar sesión para agregar favoritos');
+      toast.error('Inicia sesión para guardar favoritos', {
+        duration: 4000,
+        icon: '🔒',
+        style: {
+          borderRadius: '12px',
+          background: '#FEF3C7',
+          color: '#92400E',
+          border: '1px solid #F59E0B'
+        }
+      });
       return;
     }
 
+    // Optimistic update para mejor UX
+    const isCurrentlyFavorite = favorites.has(productId);
+    
+    if (isCurrentlyFavorite) {
+      setFavorites(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(productId);
+        return newSet;
+      });
+    } else {
+      setFavorites(prev => new Set([...prev, productId]));
+    }
+
     try {
-      const newStatus = await favoritesService.toggleFavorite(user.uid, productId);
+      const result = await favoritesService.toggleFavorite(user.uid, productId);
       
-      if (newStatus) {
+      // Verificar que el estado optimista coincida con el resultado
+      if (result.isFavorite !== !isCurrentlyFavorite) {
+        // Revertir si hay inconsistencia
+        if (result.isFavorite) {
+          setFavorites(prev => new Set([...prev, productId]));
+        } else {
+          setFavorites(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(productId);
+            return newSet;
+          });
+        }
+      }
+      
+      toast.success(result.message, {
+        duration: 3000,
+        icon: result.isFavorite ? '❤️' : '📄',
+        style: {
+          borderRadius: '12px',
+          background: result.isFavorite ? '#DCFCE7' : '#F3F4F6',
+          color: result.isFavorite ? '#166534' : '#374151',
+          border: `1px solid ${result.isFavorite ? '#22C55E' : '#D1D5DB'}`
+        }
+      });
+    } catch (error) {
+      // Revertir optimistic update en caso de error
+      if (isCurrentlyFavorite) {
         setFavorites(prev => new Set([...prev, productId]));
       } else {
         setFavorites(prev => {
@@ -108,15 +183,22 @@ const HomePage = () => {
         });
       }
       
-      toast.success(newStatus ? 'Agregado a favoritos' : 'Eliminado de favoritos');
-    } catch (error) {
       console.error('Error toggling favorite:', error);
-      toast.error('Error al actualizar favoritos');
+      toast.error('No se pudo actualizar favoritos. Inténtalo de nuevo.', {
+        duration: 5000,
+        icon: '⚠️',
+        style: {
+          borderRadius: '12px',
+          background: '#FEE2E2',
+          color: '#991B1B',
+          border: '1px solid #EF4444'
+        }
+      });
     }
   };
 
   const handleEdit = (product) => {
-    window.location.href = `/edit/${product.id}`;
+    navigate(`/edit/${product.id}`);
   };
 
   const handleDelete = async (productId) => {
@@ -142,51 +224,57 @@ const HomePage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[#205781]"></div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-300 border-t-[#205781] mx-auto mb-4"></div>
+          <div className="space-y-2">
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32 mx-auto animate-pulse"></div>
+            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-24 mx-auto animate-pulse"></div>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-20">
       {/* Hero Section */}
-      <div id="hero" className="bg-gradient-to-br from-[#205781] via-[#2d6fa3] to-[#71BBB2] text-white scroll-mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <div id="hero" className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
           <div className="text-center">
-            <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 bg-white bg-opacity-20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-                <Smartphone className="w-10 h-10 text-white" />
-              </div>
-            </div>
-            <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
-              Descubre, Intercambia, Renueva
+            <img src={`${process.env.PUBLIC_URL}/casse.png`} alt="Cassé" className="w-16 h-16 md:w-20 md:h-20 object-contain mx-auto mb-6" />
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white">
+              Encuentra los mejores dispositivos electrónicos
             </h1>
-            <p className="text-xl md:text-2xl text-blue-100 mb-8 max-w-3xl mx-auto leading-relaxed">
-              La plataforma líder para intercambiar dispositivos electrónicos de forma segura y sostenible
+            <p className="text-base sm:text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-6 max-w-2xl mx-auto leading-relaxed px-4">
+              Miles de productos verificados con envío gratis y garantía
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            
+
+            
+            {/* CTA Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center px-4">
               {user ? (
                 <Link
                   to="/create"
-                  className="bg-[#71BBB2] text-[#205781] px-8 py-4 rounded-xl hover:bg-opacity-90 transition-all duration-300 flex items-center space-x-3 font-semibold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                  className="bg-[#205781] text-white px-6 py-3 rounded-lg hover:bg-[#1a4a6b] transition-colors font-medium flex items-center space-x-2 w-full sm:w-auto justify-center"
                 >
-                  <Plus className="w-6 h-6" />
-                  <span>Publicar Producto</span>
+                  <Plus className="w-5 h-5" />
+                  <span>Vender producto</span>
                 </Link>
               ) : (
                 <>
                   <Link
                     to="/register"
-                    className="bg-[#71BBB2] text-[#205781] px-8 py-4 rounded-xl hover:bg-opacity-90 transition-all duration-300 font-semibold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                    className="bg-[#205781] text-white px-6 py-3 rounded-lg hover:bg-[#1a4a6b] transition-colors font-medium w-full sm:w-auto text-center"
                   >
-                    Comenzar Ahora
+                    Crear cuenta
                   </Link>
                   <Link
                     to="/login"
-                    className="bg-white bg-opacity-10 text-white px-8 py-4 rounded-xl hover:bg-opacity-20 transition-all duration-300 font-semibold text-lg backdrop-blur-sm border border-white border-opacity-20"
+                    className="bg-white text-gray-700 border border-gray-300 px-6 py-3 rounded-lg hover:bg-gray-50 transition-colors font-medium w-full sm:w-auto text-center"
                   >
-                    Iniciar Sesión
+                    Iniciar sesión
                   </Link>
                 </>
               )}
@@ -195,416 +283,360 @@ const HomePage = () => {
         </div>
       </div>
       
-      {/* Stats Section */}
-      <div className="bg-white py-12 shadow-sm">
+      {/* Trust Indicators */}
+      <div className="bg-white dark:bg-gray-800 py-12 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-            <div className="flex flex-col items-center">
-              <div className="w-16 h-16 bg-[#205781] bg-opacity-10 rounded-full flex items-center justify-center mb-4">
-                <Users className="w-8 h-8 text-[#205781]" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            <div className="group text-center hover:scale-105 transition-transform duration-300">
+              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:shadow-xl transition-shadow">
+                <Shield className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">+10,000</h3>
-              <p className="text-gray-600">Usuarios activos</p>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Compra 100% Segura</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Protección total del comprador</p>
+              <div className="mt-2 text-xs text-green-600 dark:text-green-400 font-medium">✓ Garantía de devolución</div>
             </div>
-            <div className="flex flex-col items-center">
-              <div className="w-16 h-16 bg-[#71BBB2] bg-opacity-10 rounded-full flex items-center justify-center mb-4">
-                <Smartphone className="w-8 h-8 text-[#71BBB2]" />
+            <div className="group text-center hover:scale-105 transition-transform duration-300">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:shadow-xl transition-shadow">
+                <Recycle className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">+5,000</h3>
-              <p className="text-gray-600">Productos intercambiados</p>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Envío Express</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Gratis en +5M productos</p>
+              <div className="mt-2 text-xs text-blue-600 dark:text-blue-400 font-medium">✓ Entrega en 24-48h</div>
             </div>
-            <div className="flex flex-col items-center">
-              <div className="w-16 h-16 bg-green-500 bg-opacity-10 rounded-full flex items-center justify-center mb-4">
-                <Recycle className="w-8 h-8 text-green-500" />
+            <div className="group text-center hover:scale-105 transition-transform duration-300">
+              <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:shadow-xl transition-shadow">
+                <Star className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">98%</h3>
-              <p className="text-gray-600">Satisfacción del usuario</p>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Calidad Premium</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Productos verificados</p>
+              <div className="mt-2 text-xs text-purple-600 dark:text-purple-400 font-medium">✓ Inspección técnica</div>
+            </div>
+            <div className="group text-center hover:scale-105 transition-transform duration-300">
+              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:shadow-xl transition-shadow">
+                <Users className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">+15M Usuarios</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Comunidad global activa</p>
+              <div className="mt-2 text-xs text-orange-600 dark:text-orange-400 font-medium">✓ 4.9★ satisfacción</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Categories Section */}
-      <div id="categories" className="bg-white py-16 scroll-mt-20">
+      <div id="categories" className="bg-gray-50 dark:bg-gray-900 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">Explora por Categorías</h2>
-            <p className="text-gray-600 text-lg">Encuentra exactamente lo que buscas</p>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Explora por Categoría</h2>
+            <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">Descubre miles de productos organizados para que encuentres exactamente lo que buscas</p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
             {[
-              { name: 'Smartphones', icon: '📱', count: '2.5k+', slug: 'smartphones' },
-              { name: 'Laptops', icon: '💻', count: '1.8k+', slug: 'laptops' },
-              { name: 'Gaming', icon: '🎮', count: '1.2k+', slug: 'gaming' },
-              { name: 'Audio', icon: '🎧', count: '950+', slug: 'audio' },
-              { name: 'Wearables', icon: '⌚', count: '680+', slug: 'wearables' },
-              { name: 'Cámaras', icon: '📷', count: '420+', slug: 'cameras' }
+              { name: 'Smartphones', icon: '📱', count: '2,847', slug: 'smartphones', color: 'from-blue-500 to-blue-600' },
+              { name: 'Laptops', icon: '💻', count: '1,923', slug: 'laptops', color: 'from-purple-500 to-purple-600' },
+              { name: 'Gaming', icon: '🎮', count: '1,456', slug: 'gaming', color: 'from-red-500 to-red-600' },
+              { name: 'Audio', icon: '🎧', count: '987', slug: 'audio', color: 'from-green-500 to-green-600' },
+              { name: 'Wearables', icon: '⌚', count: '743', slug: 'wearables', color: 'from-orange-500 to-orange-600' },
+              { name: 'Cámaras', icon: '📷', count: '521', slug: 'cameras', color: 'from-pink-500 to-pink-600' }
             ].map((category, index) => (
-              <Link key={index} to={`/category/${category.slug}`} className="bg-gray-50 rounded-xl p-6 text-center hover:bg-gray-100 transition-colors cursor-pointer group">
-                <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">{category.icon}</div>
-                <h3 className="font-semibold text-gray-800 mb-1">{category.name}</h3>
-                <p className="text-sm text-gray-500">{category.count}</p>
+              <Link key={index} to={`/category/${category.slug}`} className="group relative">
+                <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 text-center hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border border-gray-200 dark:border-gray-700 hover:border-transparent">
+                  <div className={`w-16 h-16 bg-gradient-to-br ${category.color} rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110`}>
+                    <span className="text-2xl">{category.icon}</span>
+                  </div>
+                  <h3 className="font-bold text-gray-900 dark:text-white mb-2 text-lg">{category.name}</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{category.count} productos</p>
+                  <div className="text-xs text-[#205781] dark:text-blue-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                    Ver todos →
+                  </div>
+                </div>
               </Link>
             ))}
           </div>
         </div>
       </div>
       
-      {/* Featured Products Section - Condicional */}
-      <div className="bg-gradient-to-br from-gray-50 to-blue-50 py-16">
+      {/* Search Section */}
+      <div className="bg-white dark:bg-gray-800 py-8 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {searchTerm ? (
-            /* Sección de publicar cuando hay búsqueda */
-            <div className="text-center">
-              <div className="bg-white rounded-2xl shadow-xl p-8 max-w-2xl mx-auto border border-gray-100">
-                <div className="w-16 h-16 bg-gradient-to-br from-[#205781] to-[#71BBB2] rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Plus className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-4">
-                  ¿No encontraste lo que buscas?
-                </h3>
-                <p className="text-gray-600 mb-6">
-                  Publica tu producto "{searchTerm}" y conecta con miles de usuarios interesados
-                </p>
-                {user ? (
-                  <Link
-                    to="/create"
-                    className="bg-gradient-to-r from-[#205781] to-[#2d6fa3] text-white px-8 py-4 rounded-xl hover:shadow-xl transition-all duration-300 inline-flex items-center space-x-3 font-semibold transform hover:scale-105"
-                  >
-                    <Plus className="w-5 h-5" />
-                    <span>Publicar "{searchTerm}"</span>
-                  </Link>
+          <div className="max-w-4xl mx-auto">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Search className="h-6 w-6 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Buscar iPhone, MacBook, PlayStation, Samsung, Xiaomi..."
+                className={`block w-full pl-12 pr-12 py-4 border rounded-2xl leading-5 transition-all duration-200 text-lg ${
+                  isDark 
+                    ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-[#71BBB2] focus:ring-[#71BBB2]/20' 
+                    : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:border-[#205781] focus:ring-[#205781]/20'
+                } focus:ring-4 focus:outline-none shadow-lg`}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchTerm}
+              />
+              <div className="absolute inset-y-0 right-0 pr-4 flex items-center space-x-2">
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`p-2 rounded-lg transition-colors ${
+                    isDark ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            {/* Quick Filters */}
+            <div className="flex flex-wrap gap-2 mt-4">
+              {['iPhone', 'Samsung', 'PlayStation', 'MacBook', 'Gaming', 'Audio'].map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setSearchTerm(filter)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    searchTerm.toLowerCase().includes(filter.toLowerCase())
+                      ? 'bg-[#205781] text-white'
+                      : isDark
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Featured Products Slider */}
+      <div className="bg-gray-50 dark:bg-gray-900 py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <ProductSlider 
+            products={fakeProducts.slice(0, 8)} 
+            title="🔥 Productos Destacados" 
+            autoPlay={true}
+          />
+        </div>
+      </div>
+      
+      {/* Products Section */}
+      <div className="bg-white dark:bg-gray-800 py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8">
+            <div className="mb-4 md:mb-0">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                {searchTerm ? (
+                  <>
+                    Resultados para <span className="text-[#205781] dark:text-blue-400">"{searchTerm}"</span>
+                  </>
                 ) : (
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-500">Inicia sesión para publicar productos</p>
-                    <div className="flex gap-3 justify-center">
-                      <Link to="/login" className="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-200 transition-colors">
-                        Iniciar Sesión
-                      </Link>
-                      <Link to="/register" className="bg-[#71BBB2] text-white px-6 py-3 rounded-lg hover:bg-opacity-90 transition-colors">
-                        Registrarse
-                      </Link>
-                    </div>
+                  'Productos Destacados'
+                )}
+              </h2>
+              <div className="flex items-center space-x-4">
+                <p className="text-gray-600 dark:text-gray-300">
+                  {searchTerm ? 
+                    `${filteredProducts.length.toLocaleString()} ${filteredProducts.length === 1 ? 'producto encontrado' : 'productos encontrados'}` :
+                    'Descubre las mejores ofertas seleccionadas para ti'
+                  }
+                </p>
+                {!searchTerm && (
+                  <div className="flex items-center space-x-1 text-yellow-500">
+                    <Star className="w-4 h-4 fill-current" />
+                    <span className="text-sm font-medium">4.9 promedio</span>
                   </div>
                 )}
               </div>
             </div>
-          ) : (
-            /* Slide de productos destacados cuando no hay búsqueda */
-            <div>
-              <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold text-gray-800 mb-4">Ofertas Destacadas</h2>
-                <p className="text-gray-600 text-lg">Los mejores productos con descuentos especiales</p>
-              </div>
-              
-              {/* Carousel de productos destacados */}
-              <div className="relative overflow-hidden">
-                <div className="flex space-x-6 animate-scroll">
-                  {[...fakeProducts.slice(0, 6), ...fakeProducts.slice(0, 6)].map((product, index) => (
-                    <div key={index} className="flex-shrink-0 w-80 bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
-                      <div className="relative h-48">
-                        <img
-                          src={product.fotos[0]}
-                          alt={product.titulo}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDMyMCAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzMjAiIGhlaWdodD0iMTkyIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xNDQgOTZMMTc2IDEyOEgxMTJMMTQ0IDk2WiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K';
-                          }}
-                        />
-                        <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-                          -{Math.floor(Math.random() * 30 + 10)}%
-                        </div>
-                      </div>
-                      <div className="p-6">
-                        <h3 className="font-bold text-lg text-gray-800 mb-2 line-clamp-1">{product.titulo}</h3>
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-2xl font-bold text-[#205781]">${product.precio}</span>
-                            <span className="text-sm text-gray-500 line-through">${Math.floor(product.precio * 1.3)}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                            <span className="text-sm text-gray-600">4.{Math.floor(Math.random() * 9 + 1)}</span>
-                          </div>
-                        </div>
-                        <Link
-                          to={`/product/${product.id}`}
-                          className="block w-full bg-gradient-to-r from-[#205781] to-[#2d6fa3] text-white py-3 rounded-lg hover:shadow-lg transition-all duration-300 font-semibold text-center"
-                        >
-                          Ver Oferta
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <div className="flex items-center space-x-3">
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium text-sm"
+                >
+                  ✕ Limpiar filtros
+                </button>
+              )}
+              <div className="flex items-center space-x-2">
+                <Filter className="w-4 h-4 text-gray-400" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className={`text-sm border-0 bg-transparent focus:ring-0 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}
+                >
+                  <option value="relevance">Más relevantes</option>
+                  <option value="price_low">Menor precio</option>
+                  <option value="price_high">Mayor precio</option>
+                  <option value="newest">Más recientes</option>
+                  <option value="popular">Más populares</option>
+                </select>
               </div>
             </div>
+          </div>
+          
+          {filteredProducts.length === 0 ? (
+            <div className="text-center py-20">
+              <div className="w-32 h-32 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
+                <div className="text-4xl opacity-50">🔍</div>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                {searchTerm ? 'No encontramos productos' : 'Aún no hay productos'}
+              </h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-8 max-w-md mx-auto">
+                {searchTerm ? 
+                  'Intenta con otros términos de búsqueda o explora nuestras categorías' : 
+                  'Sé el primero en publicar algo increíble en nuestra plataforma'
+                }
+              </p>
+              {searchTerm ? (
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="px-6 py-3 bg-[#205781] text-white rounded-lg hover:bg-[#1a4a6b] transition-colors font-medium"
+                  >
+                    Ver todos los productos
+                  </button>
+                  <Link
+                    to="#categories"
+                    className="px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium"
+                  >
+                    Explorar categorías
+                  </Link>
+                </div>
+              ) : (
+                <Link
+                  to="/create"
+                  className="inline-flex items-center px-6 py-3 bg-[#205781] text-white rounded-lg hover:bg-[#1a4a6b] transition-colors font-medium"
+                >
+                  <Plus className="w-5 h-5 mr-2" />
+                  Publicar primer producto
+                </Link>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                {displayedProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onFavorite={handleFavorite}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    isFavorite={favorites.has(product.uuid)}
+                    onClick={() => navigate(`/product/${product.id}`)}
+                  />
+                ))}
+              </div>
+              
+              {showMore && (
+                <div className="text-center mt-12">
+                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-2xl p-8">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                      ¡Hay más productos esperando!
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300 mb-6">
+                      Descubre {(filteredProducts.length - displayedProducts.length).toLocaleString()} productos adicionales
+                    </p>
+                    <button
+                      onClick={handleLoadMore}
+                      className="bg-gradient-to-r from-[#205781] to-[#2d6fa3] text-white px-8 py-4 rounded-xl hover:shadow-lg transition-all duration-300 font-semibold transform hover:scale-105 inline-flex items-center space-x-2"
+                    >
+                      <span>Cargar todos los productos</span>
+                      <ChevronDown className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
       
-      {/* Search Section */}
-      <div className="bg-white py-8 border-b border-gray-100">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative group">
-            <div className="absolute inset-0 bg-gradient-to-r from-[#205781] to-[#71BBB2] rounded-2xl blur opacity-20 group-hover:opacity-30 transition-opacity duration-300"></div>
-            <div className="relative bg-white border-2 border-gray-100 rounded-2xl shadow-xl group-hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center p-2">
-                <div className="flex items-center flex-1">
-                  <div className="w-12 h-12 bg-gradient-to-br from-[#205781] to-[#2d6fa3] rounded-xl flex items-center justify-center ml-2">
-                    <Search className="w-6 h-6 text-white" />
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Buscar iPhone, MacBook, PlayStation, Samsung..."
-                    className="flex-1 bg-transparent text-gray-800 placeholder-gray-500 px-4 py-3 focus:outline-none text-lg font-medium"
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value);
-                    }}
-                    value={searchTerm}
-                  />
+      {/* Footer */}
+      <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white mt-20 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-[#205781]/10 to-[#71BBB2]/10"></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
+            <div className="md:col-span-1">
+              <div className="flex items-center mb-6">
+                <img src={`${process.env.PUBLIC_URL}/casse.png`} alt="Cassé" className="w-10 h-10 mr-3" />
+                <span className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">Cassé</span>
+              </div>
+              <p className="text-gray-300 mb-6 leading-relaxed">
+                La plataforma de comercio electrónico más confiable de Latinoamérica. Conectamos compradores y vendedores de forma segura.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white/5 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-[#71BBB2]">15M+</div>
+                  <div className="text-xs text-gray-400">Usuarios Activos</div>
                 </div>
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    className="mr-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition-colors duration-300 text-sm font-medium"
-                  >
-                    Limpiar
-                  </button>
-                )}
-                <div className="mr-2">
-                  <kbd className="px-3 py-2 text-xs text-gray-500 bg-gray-100 rounded-lg border border-gray-200">
-                    ⌘K
-                  </kbd>
+                <div className="bg-white/5 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-[#71BBB2]">99.9%</div>
+                  <div className="text-xs text-gray-400">Satisfacción</div>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-bold mb-6 text-white">Categorías Populares</h3>
+              <ul className="space-y-3">
+                <li><Link to="/category/smartphones" className="text-gray-300 hover:text-[#71BBB2] transition-colors duration-300 flex items-center group"><span className="mr-2 group-hover:translate-x-1 transition-transform">📱</span>Smartphones</Link></li>
+                <li><Link to="/category/laptops" className="text-gray-300 hover:text-[#71BBB2] transition-colors duration-300 flex items-center group"><span className="mr-2 group-hover:translate-x-1 transition-transform">💻</span>Laptops</Link></li>
+                <li><Link to="/category/gaming" className="text-gray-300 hover:text-[#71BBB2] transition-colors duration-300 flex items-center group"><span className="mr-2 group-hover:translate-x-1 transition-transform">🎮</span>Gaming</Link></li>
+                <li><Link to="/category/audio" className="text-gray-300 hover:text-[#71BBB2] transition-colors duration-300 flex items-center group"><span className="mr-2 group-hover:translate-x-1 transition-transform">🎧</span>Audio</Link></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-bold mb-6 text-white">Soporte 24/7</h3>
+              <ul className="space-y-3">
+                <li><Link to="/support" className="text-gray-300 hover:text-[#71BBB2] transition-colors duration-300 flex items-center group"><span className="mr-2 group-hover:translate-x-1 transition-transform">📞</span>Centro de ayuda</Link></li>
+                <li><Link to="/terms" className="text-gray-300 hover:text-[#71BBB2] transition-colors duration-300 flex items-center group"><span className="mr-2 group-hover:translate-x-1 transition-transform">📄</span>Términos legales</Link></li>
+                <li><Link to="/privacy" className="text-gray-300 hover:text-[#71BBB2] transition-colors duration-300 flex items-center group"><span className="mr-2 group-hover:translate-x-1 transition-transform">🔒</span>Privacidad</Link></li>
+                <li><div className="flex items-center text-green-400 font-medium"><span className="mr-2">✓</span>Garantía total</div></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-bold mb-6 text-white">Tu Cuenta</h3>
+              <ul className="space-y-3">
+                <li><Link to="/profile" className="text-gray-300 hover:text-[#71BBB2] transition-colors duration-300 flex items-center group"><span className="mr-2 group-hover:translate-x-1 transition-transform">👤</span>Mi perfil</Link></li>
+                <li><Link to="/favorites" className="text-gray-300 hover:text-[#71BBB2] transition-colors duration-300 flex items-center group"><span className="mr-2 group-hover:translate-x-1 transition-transform">❤️</span>Favoritos</Link></li>
+                <li><Link to="/messages" className="text-gray-300 hover:text-[#71BBB2] transition-colors duration-300 flex items-center group"><span className="mr-2 group-hover:translate-x-1 transition-transform">💬</span>Mensajes</Link></li>
+                <li><Link to="/create" className="text-gray-300 hover:text-[#71BBB2] transition-colors duration-300 flex items-center group"><span className="mr-2 group-hover:translate-x-1 transition-transform">💰</span>Vender ahora</Link></li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="border-t border-gray-700/50 mt-12 pt-8">
+            <div className="flex flex-col md:flex-row justify-between items-center">
+              <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-6">
+                <p className="text-gray-400 text-sm">
+                  © 2024 Cassé. Todos los derechos reservados.
+                </p>
+                <div className="flex items-center space-x-4 text-sm text-gray-400">
+                  <span>ISO 27001 Certificado</span>
+                  <span>•</span>
+                  <span>SSL Seguro</span>
+                  <span>•</span>
+                  <span>PCI DSS Compliant</span>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3 mt-4 md:mt-0">
+                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                  <span>Hecho con</span>
+                  <span className="text-red-500 animate-pulse">❤️</span>
+                  <span>en Montevideo, Uruguay</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-      
-      {/* Products Grid */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Search Results Counter */}
-        {searchTerm && (
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 mb-8 border border-blue-100">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-[#205781] to-[#2d6fa3] rounded-full flex items-center justify-center">
-                  <Search className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <span className="text-xl font-bold text-gray-800">
-                    "{searchTerm}"
-                  </span>
-                  <p className="text-sm text-gray-600">
-                    {filteredProducts.length} {filteredProducts.length === 1 ? 'resultado encontrado' : 'resultados encontrados'}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSearchTerm('')}
-                className="bg-white text-gray-600 hover:text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all duration-300 text-sm font-medium border border-gray-200"
-              >
-                Limpiar búsqueda
-              </button>
-            </div>
-          </div>
-        )}
-        {filteredProducts.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="text-6xl mb-4">📱</div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">
-              No hay productos disponibles
-            </h3>
-            <p className="text-gray-600">
-              Sé el primero en publicar algo increíble
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {displayedProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onFavorite={handleFavorite}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  isFavorite={favorites.has(product.uuid)}
-                  onClick={() => window.location.href = `/product/${product.id}`}
-                />
-              ))}
-            </div>
-            
-            {showMore && (
-              <div className="text-center mt-12">
-                <button
-                  onClick={handleLoadMore}
-                  className="bg-gradient-to-r from-[#205781] to-[#2d6fa3] text-white px-10 py-4 rounded-xl hover:shadow-xl transition-all duration-300 flex items-center space-x-3 mx-auto group transform hover:scale-105"
-                >
-                  <span className="font-semibold">Ver todos los productos ({filteredProducts.length})</span>
-                  <ChevronDown className="w-5 h-5 group-hover:translate-y-1 transition-transform" />
-                </button>
-                <p className="text-gray-500 text-sm mt-3">
-                  Mostrando {displayedProducts.length} de {filteredProducts.length} productos
-                </p>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-      
-
-      
-      {/* Footer - Siempre visible */}
-      <div className="mt-16">
-        {/* Spacer para separar del contenido */}
-        <footer className="bg-gradient-to-br from-[#1a4a6b] via-[#205781] to-[#2d6fa3] text-white relative overflow-hidden">
-          {/* Decorative background elements */}
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-10 left-10 w-32 h-32 bg-[#71BBB2] rounded-full blur-3xl"></div>
-            <div className="absolute bottom-10 right-10 w-40 h-40 bg-[#71BBB2] rounded-full blur-3xl"></div>
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white rounded-full blur-3xl opacity-5"></div>
-          </div>
-          
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative z-10">
-            {/* Top section with logo and main info */}
-            <div className="text-center mb-16">
-              <div className="flex justify-center mb-6">
-                <div className="w-20 h-20 bg-gradient-to-br from-[#71BBB2] to-[#5aa89f] rounded-2xl flex items-center justify-center shadow-2xl">
-                  <Recycle className="w-10 h-10 text-white" />
-                </div>
-              </div>
-              <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
-                Cassé
-              </h2>
-              <p className="text-xl text-blue-100 max-w-3xl mx-auto leading-relaxed mb-8">
-                Revolucionando el intercambio de tecnología para un futuro más sostenible
-              </p>
-              
-              {/* App Download Section */}
-              <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-2xl p-8 max-w-2xl mx-auto border border-white border-opacity-20">
-                <h3 className="text-2xl font-bold text-white mb-4">Descarga nuestra app</h3>
-                <p className="text-blue-100 mb-6">Lleva Cassé contigo y nunca te pierdas una oportunidad de intercambio</p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                  <a href="#" className="bg-black text-white px-6 py-3 rounded-xl flex items-center space-x-3 hover:bg-gray-800 transition-colors">
-                    <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-                      <span className="text-black font-bold text-sm"></span>
-                    </div>
-                    <div className="text-left">
-                      <div className="text-xs text-gray-300">Descargar en</div>
-                      <div className="font-semibold">App Store</div>
-                    </div>
-                  </a>
-                  <a href="#" className="bg-black text-white px-6 py-3 rounded-xl flex items-center space-x-3 hover:bg-gray-800 transition-colors">
-                    <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-blue-500 rounded-lg flex items-center justify-center">
-                      <span className="text-white font-bold text-sm">▶</span>
-                    </div>
-                    <div className="text-left">
-                      <div className="text-xs text-gray-300">Disponible en</div>
-                      <div className="font-semibold">Google Play</div>
-                    </div>
-                  </a>
-                </div>
-              </div>
-            </div>
-            
-            {/* Stats section */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-16">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-white bg-opacity-10 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-                  <Users className="w-8 h-8 text-[#71BBB2]" />
-                </div>
-                <div className="text-3xl font-bold text-white mb-2">+15K</div>
-                <div className="text-blue-200 text-sm">Usuarios Activos</div>
-              </div>
-              <div className="text-center">
-                <div className="w-16 h-16 bg-white bg-opacity-10 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-                  <Smartphone className="w-8 h-8 text-[#71BBB2]" />
-                </div>
-                <div className="text-3xl font-bold text-white mb-2">+8K</div>
-                <div className="text-blue-200 text-sm">Productos Intercambiados</div>
-              </div>
-              <div className="text-center">
-                <div className="w-16 h-16 bg-white bg-opacity-10 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-                  <Recycle className="w-8 h-8 text-[#71BBB2]" />
-                </div>
-                <div className="text-3xl font-bold text-white mb-2">2.5M</div>
-                <div className="text-blue-200 text-sm">Kg CO2 Ahorrados</div>
-              </div>
-              <div className="text-center">
-                <div className="w-16 h-16 bg-white bg-opacity-10 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-                  <Shield className="w-8 h-8 text-[#71BBB2]" />
-                </div>
-                <div className="text-3xl font-bold text-white mb-2">99.8%</div>
-                <div className="text-blue-200 text-sm">Transacciones Seguras</div>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
-              {/* Navegación */}
-              <div>
-                <h3 className="text-xl font-bold mb-6 text-white">Navegación</h3>
-                <ul className="space-y-3">
-                  <li><Link to="/" className="text-blue-200 hover:text-[#71BBB2] transition-colors duration-300 flex items-center space-x-2"><span>→</span><span>Inicio</span></Link></li>
-                  <li><Link to="/create" className="text-blue-200 hover:text-[#71BBB2] transition-colors duration-300 flex items-center space-x-2"><span>→</span><span>Publicar</span></Link></li>
-                  <li><Link to="/favorites" className="text-blue-200 hover:text-[#71BBB2] transition-colors duration-300 flex items-center space-x-2"><span>→</span><span>Favoritos</span></Link></li>
-                  <li><Link to="/messages" className="text-blue-200 hover:text-[#71BBB2] transition-colors duration-300 flex items-center space-x-2"><span>→</span><span>Mensajes</span></Link></li>
-                </ul>
-              </div>
-              
-              {/* Categorías */}
-              <div>
-                <h3 className="text-xl font-bold mb-6 text-white">Categorías</h3>
-                <ul className="space-y-3">
-                  <li><Link to="/category/smartphones" className="text-blue-200 hover:text-[#71BBB2] transition-colors duration-300 flex items-center space-x-2"><span>📱</span><span>Smartphones</span></Link></li>
-                  <li><Link to="/category/laptops" className="text-blue-200 hover:text-[#71BBB2] transition-colors duration-300 flex items-center space-x-2"><span>💻</span><span>Laptops</span></Link></li>
-                  <li><Link to="/category/gaming" className="text-blue-200 hover:text-[#71BBB2] transition-colors duration-300 flex items-center space-x-2"><span>🎮</span><span>Gaming</span></Link></li>
-                  <li><Link to="/category/audio" className="text-blue-200 hover:text-[#71BBB2] transition-colors duration-300 flex items-center space-x-2"><span>🎧</span><span>Audio</span></Link></li>
-                </ul>
-              </div>
-              
-              {/* Soporte */}
-              <div>
-                <h3 className="text-xl font-bold mb-6 text-white">Soporte</h3>
-                <ul className="space-y-3">
-                  <li><Link to="/support" className="text-blue-200 hover:text-[#71BBB2] transition-colors duration-300 flex items-center space-x-2"><span>📞</span><span>Ayuda</span></Link></li>
-                  <li><Link to="/terms" className="text-blue-200 hover:text-[#71BBB2] transition-colors duration-300 flex items-center space-x-2"><span>📄</span><span>Términos</span></Link></li>
-                  <li><Link to="/privacy" className="text-blue-200 hover:text-[#71BBB2] transition-colors duration-300 flex items-center space-x-2"><span>🔒</span><span>Privacidad</span></Link></li>
-                  <li><div className="text-blue-200 flex items-center space-x-2"><Shield className="w-4 h-4 text-[#71BBB2]" /><span>Compra 100% Segura</span></div></li>
-                </ul>
-              </div>
-              
-              {/* Comunidad */}
-              <div>
-                <h3 className="text-xl font-bold mb-6 text-white">Comunidad</h3>
-                <div className="space-y-4">
-                  <div className="bg-white bg-opacity-10 rounded-lg p-4 backdrop-blur-sm">
-                    <div className="text-2xl font-bold text-[#71BBB2] mb-1">4.9/5</div>
-                    <div className="text-blue-200 text-sm">Calificación promedio</div>
-                  </div>
-                  <div className="text-blue-200 text-sm">
-                    Únete a miles de usuarios que ya confían en Cassé para sus intercambios tecnológicos.
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Separador */}
-            <div className="border-t border-blue-400 border-opacity-30 mt-12 pt-8">
-              <div className="flex flex-col md:flex-row justify-between items-center">
-                <p className="text-blue-100 text-sm">
-                  © 2024 Cassé. Todos los derechos reservados.
-                </p>
-                <p className="text-blue-100 text-sm mt-2 md:mt-0">
-                  Hecho con ❤️ para un futuro sostenible
-                </p>
-              </div>
-            </div>
-          </div>
-        </footer>
-      </div>
+      </footer>
     </div>
   );
 };

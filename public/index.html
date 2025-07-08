@@ -2,12 +2,36 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="/public/Cassé.png" />
+    <link rel="icon" href="%PUBLIC_URL%/casse.png" />
+    <link rel="shortcut icon" href="%PUBLIC_URL%/casse.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#205781" />
-    <meta name="description" content="Cassé - Intercambio de dispositivos electrónicos" />
-    <title>Cassé</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23205781'/%3E%3Cpath d='M30 35h40v30H30z' fill='%2371BBB2'/%3E%3Cpath d='M35 40h30v5H35zm0 10h25v5H35zm0 10h20v5H35z' fill='white'/%3E%3C/svg%3E">
+    <meta name="description" content="Cassé - Intercambio de dispositivos electrónicos de forma segura y sostenible" />
+    <meta name="keywords" content="intercambio, dispositivos, electrónicos, smartphones, laptops, gaming, sostenible" />
+    <meta property="og:title" content="Cassé - Intercambio Inteligente" />
+    <meta property="og:description" content="La plataforma líder para intercambiar dispositivos electrónicos de forma segura y sostenible" />
+    <meta property="og:image" content="%PUBLIC_URL%/casse.png" />
+    <meta property="og:url" content="https://jonatha32.github.io/Cass--Web" />
+    <title>Cassé - Intercambio Inteligente</title>
+
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Cassé" />
+    
+    <!-- GitHub Pages SPA redirect script -->
+    <script type="text/javascript">
+      (function(l) {
+        if (l.search[1] === '/' ) {
+          var decoded = l.search.slice(1).split('&').map(function(s) { 
+            return s.replace(/~and~/g, '&')
+          }).join('?');
+          window.history.replaceState(null, null,
+              l.pathname.slice(0, -1) + decoded + l.hash
+          );
+        }
+      }(window.location))
+    </script>
   </head>
   <body>
     <noscript>Necesitas habilitar JavaScript para ejecutar esta app.</noscript>
